@@ -20,7 +20,7 @@ type Program struct {
 func NewProgram(name string, path string, args []string) Program {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			panic("File not exist")
+			panic(fmt.Sprintf("File not exist:%s", path))
 		}
 	}
 
