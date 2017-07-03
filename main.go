@@ -95,6 +95,7 @@ type Scripts struct {
 	Args        []string
 	BgMode      bool
 	Timeout     int
+	SleepAfter  time.Duration
 }
 
 type Environments struct {
@@ -120,6 +121,7 @@ func main() {
 		program := NewProgram(script.Name, finalPath, script.Args)
 		program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
 		programs[script.Name] = program
+		time.Sleep(script.SleepAfter * time.Second)
 	}
 
 	var containErr bool
