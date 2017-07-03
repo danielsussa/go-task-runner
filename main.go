@@ -125,9 +125,9 @@ func main() {
 	var containErr bool
 
 	for _, program := range programs {
-
-		log.Println("LOG", program.name, ":", program.command.Stdout)
-		log.Println("Status exit", program.name, ":", program.command.Stderr)
+		log.Println(program.name, ":")
+		log.Println("LOG:", program.command.Stdout)
+		log.Println("Status:", program.command.Stderr)
 
 		if program.command.ProcessState != nil {
 			if program.command.ProcessState.Success() == false {
@@ -135,6 +135,7 @@ func main() {
 				containErr = true
 			}
 		}
+		log.Println()
 		program.kill()
 	}
 
