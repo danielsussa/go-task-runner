@@ -122,6 +122,8 @@ func main() {
 		programs[script.Name] = program
 	}
 
+	var containErr bool
+
 	for _, program := range programs {
 
 		log.Println("LOG", program.name, ":", program.command.Stdout)
@@ -130,8 +132,13 @@ func main() {
 		if program.command.ProcessState != nil {
 			if program.command.ProcessState.Success() == false {
 				log.Println("Error in: ", program.name)
+				containErr = true
 			}
 		}
 		program.kill()
+	}
+
+	if containErr {
+		log.Fatal("Error in application found!")
 	}
 }
