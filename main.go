@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/go-resty/resty"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/go-resty/resty"
 )
 
 type Program struct {
@@ -54,9 +55,9 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 	count := 0
 	for {
 		if count > timeout {
-			log.Println("Not responding..")
 			log.Println("LOG:", p.command.Stdout)
 			log.Println("ERR:", p.command.Stderr)
+			log.Fatal("Not responding..")
 			os.Exit(2)
 		}
 		if p.command.Process != nil {
