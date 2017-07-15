@@ -11,14 +11,17 @@ import (
 	"time"
 
 	"github.com/go-resty/resty"
+
+	. "github.com/logrusorgru/aurora"
 )
 
 type Program struct {
 	name    string
 	command *exec.Cmd
+	index   int
 }
 
-func NewProgram(name string, path string, args []string) Program {
+func NewProgram(name string, path string, args []string, index int) Program {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
 			panic(fmt.Sprintf("File not exist:%s", path))
@@ -26,7 +29,7 @@ func NewProgram(name string, path string, args []string) Program {
 	}
 
 	command := exec.Command(path, args...)
-	return Program{name, command}
+	return Program{name, command, index}
 }
 
 func isUrlAlive(url string) bool {
@@ -38,11 +41,48 @@ func isUrlAlive(url string) bool {
 	return false
 }
 
+func getColors(colorNum int) Color {
+	colorNum = colorNum % 7
+	switch colorNum {
+	case 0:
+		return GreenFg
+	case 1:
+		return BlueFg
+	case 2:
+		return RedFg
+	case 3:
+		return BrownFg
+	case 4:
+		return MagentaFg
+	case 5:
+		return CyanFg
+	case 6:
+		return BlueFg
+	default:
+		return GrayFg
+	}
+
+}
+
+func readLog(logB *bytes.Buffer, name string, index int) {
+	color := getColors(index)
+	for {
+		logs, _ := logB.ReadString(1)
+		if logs != "" {
+			colorize := Colorize(name+": ", color)
+			fmt.Print(colorize, logs)
+		}
+		time.Sleep(1 * time.Microsecond)
+	}
+}
+
 func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 	var out bytes.Buffer
 
 	// set the output to our variable
 	p.command.Stdout = &out
+	p.command.Stderr = &out
+	go readLog(&out, p.name, p.index)
 
 	p.command.Args = args
 
@@ -116,10 +156,10 @@ func main() {
 
 	programs := make(map[string]Program)
 
-	for _, script := range scripts {
+	for i, script := range scripts {
 		fmt.Println("Running:", script.Name)
 		finalPath := base + script.Path
-		program := NewProgram(script.Name, finalPath, script.Args)
+		program := NewProgram(script.Name, finalPath, script.Args, i)
 		program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
 		programs[script.Name] = program
 		time.Sleep(script.SleepAfter * time.Second)
@@ -128,17 +168,11 @@ func main() {
 	var containErr bool
 
 	for _, program := range programs {
-		log.Println(program.name, ":")
-		log.Println("LOG:", program.command.Stdout)
-		log.Println("Status:", program.command.Stderr)
-
 		if program.command.ProcessState != nil {
 			if program.command.ProcessState.Success() == false {
-				log.Println("Error in: ", program.name)
 				containErr = true
 			}
 		}
-		log.Println()
 		program.kill()
 	}
 
