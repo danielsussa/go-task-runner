@@ -123,9 +123,11 @@ func (p *Program) kill() {
 }
 
 type Task struct {
-	Name    string
-	EnvPath string
-	Scripts []Script
+	Name            string
+	EnvPath         string
+	TaskIfInterrupt []string
+	Environments    []map[string]string
+	Scripts         []Script
 }
 
 type Script struct {
@@ -142,7 +144,8 @@ type Script struct {
 }
 
 func main() {
-	taskName := os.Args[1]
+	taskNames := os.Args
+
 	base, _ := os.Getwd()
 
 	var tasks []Task
@@ -155,24 +158,32 @@ func main() {
 	programs := make(map[string]Program)
 	forcedExit(&programs)
 
-	for _, task := range tasks {
-		gotenv.Load(task.EnvPath)
-		if task.Name == taskName {
-			for i, script := range task.Scripts {
-				fmt.Println("Running:", script.Name)
-				finalPath := base + script.Path
-				if script.AbsPath {
-					finalPath = script.Path
+	for _, taskName := range taskNames {
+		for _, task := range tasks {
+			gotenv.Load(task.EnvPath)
+			setEnvironment(task.Environments)
+			if taskName == task.Name {
+				for i, script := range task.Scripts {
+					fmt.Println("Running:", script.Name)
+					finalPath := base + script.Path
+					if script.AbsPath {
+						finalPath = script.Path
+					}
+					setEnvironment(script.Environments)
+					program := NewProgram(script.Name, finalPath, script.Args, i, script.IgnoreError)
+					program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
+					programs[script.Name] = program
+					time.Sleep(script.SleepAfter * time.Second)
 				}
-				setEnvironment(script.Environments)
-				program := NewProgram(script.Name, finalPath, script.Args, i, script.IgnoreError)
-				program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
-				programs[script.Name] = program
-				time.Sleep(script.SleepAfter * time.Second)
 			}
 		}
 	}
+
 	exitPrograms(programs)
+}
+
+func runTask() {
+
 }
 
 func setEnvironment(envs []map[string]string) {
