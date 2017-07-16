@@ -14,6 +14,8 @@ import (
 
 	. "github.com/logrusorgru/aurora"
 	"github.com/subosito/gotenv"
+	"os/signal"
+	"syscall"
 )
 
 type Program struct {
@@ -31,6 +33,7 @@ func NewProgram(name string, path string, args []string, index int, ignoreError 
 	}
 
 	command := exec.Command(path, args...)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return Program{name, command, index, ignoreError}
 }
 
@@ -116,18 +119,7 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 }
 
 func (p *Program) kill() {
-	p.command.Process.Kill()
-	for {
-		if p.command.ProcessState != nil {
-			if p.command.ProcessState.Exited() {
-				break
-			}
-			p.command.Process.Kill()
-			time.Sleep(1 * time.Second)
-		} else {
-			break
-		}
-	}
+	syscall.Kill(-p.command.Process.Pid, 15)
 }
 
 type Task struct {
@@ -165,6 +157,7 @@ func main() {
 	_ = json.Unmarshal(input, &tasks)
 
 	programs := make(map[string]Program)
+	forcedExit(&programs)
 
 	for _, task := range tasks {
 		gotenv.Load(task.EnvPath)
@@ -182,7 +175,10 @@ func main() {
 			}
 		}
 	}
+	exitPrograms(programs)
+}
 
+func exitPrograms(programs map[string]Program) {
 	var containErr bool
 
 	for _, program := range programs {
@@ -197,4 +193,20 @@ func main() {
 	if containErr {
 		log.Fatal("Error in application found!")
 	}
+}
+
+func forcedExit(programs *map[string]Program) {
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan,
+		syscall.SIGINT,
+		syscall.SIGKILL,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		s := <-sigchan
+		// do anything you need to end program cleanly
+		log.Println("FORCE EXIT!", s)
+		exitPrograms(*programs)
+		os.Exit(0)
+	}()
 }
