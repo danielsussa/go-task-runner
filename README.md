@@ -36,6 +36,9 @@ This will generate a new go-task-runner.json file:
 	}
 ]
 ```
+
+### Properties
+
 - Tasks properties:
 	- name: task name
 	- envPath: You can use a env file containing:
