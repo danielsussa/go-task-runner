@@ -14,7 +14,9 @@ import (
 
 	. "github.com/logrusorgru/aurora"
 	"github.com/subosito/gotenv"
+	"net"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -51,6 +53,17 @@ func isUrlAlive(url string) bool {
 		return true
 	}
 	return false
+}
+
+func isTcpAlive(tpcUrl string) bool {
+	url := strings.Split(tpcUrl, "://")[1]
+	conn, err := net.Dial("tcp", url)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+
 }
 
 func getColors(colorNum int) Color {
@@ -109,8 +122,15 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 		}
 		if p.command.Process != nil {
 			if health != "" {
-				if isUrlAlive(health) {
-					break
+				if strings.Contains(health, "http") {
+					if isUrlAlive(health) {
+						break
+					}
+				}
+				if strings.Contains(health, "tcp") {
+					if isTcpAlive(health) {
+						break
+					}
 				}
 			} else {
 				break
