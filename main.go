@@ -17,12 +17,13 @@ import (
 )
 
 type Program struct {
-	name    string
-	command *exec.Cmd
-	index   int
+	name        string
+	command     *exec.Cmd
+	index       int
+	ignoreError bool
 }
 
-func NewProgram(name string, path string, args []string, index int) Program {
+func NewProgram(name string, path string, args []string, index int, ignoreError bool) Program {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
 			panic(fmt.Sprintf("File not exist:%s", path))
@@ -30,7 +31,7 @@ func NewProgram(name string, path string, args []string, index int) Program {
 	}
 
 	command := exec.Command(path, args...)
-	return Program{name, command, index}
+	return Program{name, command, index, ignoreError}
 }
 
 func isUrlAlive(url string) bool {
@@ -144,6 +145,7 @@ type Script struct {
 	Args        []string
 	BgMode      bool
 	Timeout     int
+	IgnoreError bool
 	SleepAfter  time.Duration
 }
 
@@ -174,7 +176,7 @@ func main() {
 				if script.AbsPath {
 					finalPath = script.Path
 				}
-				program := NewProgram(script.Name, finalPath, script.Args, i)
+				program := NewProgram(script.Name, finalPath, script.Args, i, script.IgnoreError)
 				program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
 				programs[script.Name] = program
 				time.Sleep(script.SleepAfter * time.Second)
@@ -186,7 +188,7 @@ func main() {
 
 	for _, program := range programs {
 		if program.command.ProcessState != nil {
-			if program.command.ProcessState.Success() == false {
+			if !program.command.ProcessState.Success() && !program.ignoreError {
 				containErr = true
 			}
 		}
