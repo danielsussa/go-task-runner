@@ -177,8 +177,20 @@ type Script struct {
 	SleepAfter   time.Duration
 }
 
+func generateJson() {
+	_, err := ioutil.ReadFile("go-task-runner.json")
+	if err != nil {
+		d1 := []byte("[\n\t{\n\t\t\"name\":\"task-hello\",\n\t\t\"envPath\":\"\",\n\t\t\"environments\":[{\"DOMAIN\":\"WORLD\"}],\n\t\t\"scripts\":[\n\t\t\t{\n\t\t\t\t\"name\":\"Say Hello\",\n\t\t\t\t\"logs\":true,\n\t\t\t\t\"path\":\"/bin/sh\",\n\t\t\t\t\"absPath\":true,\n\t\t\t\t\"timeout\":10,\n\t\t\t\t\"args\":[\"\",\"-c\",\"echo Hello from $DOMAIN\"] \r\n\t\t\t}\n\t\t]\n\t}\n]")
+		_ = ioutil.WriteFile("go-task-runner.json", d1, 0777)
+	}
+}
+
 func main() {
 	taskNames := os.Args
+
+	if taskNames[1] == "init" {
+		generateJson()
+	}
 
 	var tasks []Task
 	input, err := ioutil.ReadFile("go-task-runner.json")
