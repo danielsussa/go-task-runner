@@ -13,6 +13,7 @@ import (
 	"github.com/go-resty/resty"
 
 	. "github.com/logrusorgru/aurora"
+	"github.com/subosito/gotenv"
 )
 
 type Program struct {
@@ -82,7 +83,6 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 	// set the output to our variable
 	p.command.Stdout = &out
 	p.command.Stderr = &out
-	go readLog(&out, p.name, p.index)
 
 	p.command.Args = args
 
@@ -112,6 +112,7 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 		time.Sleep(1 * time.Second)
 		count++
 	}
+	go readLog(&out, p.name, p.index)
 }
 
 func (p *Program) kill() {
@@ -129,9 +130,16 @@ func (p *Program) kill() {
 	}
 }
 
-type Scripts struct {
+type Task struct {
+	Name    string
+	EnvPath string
+	Scripts []Script
+}
+
+type Script struct {
 	Name        string
 	Path        string
+	AbsPath     bool
 	HealthCheck string
 	Args        []string
 	BgMode      bool
@@ -145,24 +153,33 @@ type Environments struct {
 }
 
 func main() {
+	taskName := os.Args[1]
 	base, _ := os.Getwd()
 
-	var scripts []Scripts
+	var tasks []Task
 	input, err := ioutil.ReadFile("go-task-runner.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = json.Unmarshal(input, &scripts)
+	_ = json.Unmarshal(input, &tasks)
 
 	programs := make(map[string]Program)
 
-	for i, script := range scripts {
-		fmt.Println("Running:", script.Name)
-		finalPath := base + script.Path
-		program := NewProgram(script.Name, finalPath, script.Args, i)
-		program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
-		programs[script.Name] = program
-		time.Sleep(script.SleepAfter * time.Second)
+	for _, task := range tasks {
+		gotenv.Load(task.EnvPath)
+		if task.Name == taskName {
+			for i, script := range task.Scripts {
+				fmt.Println("Running:", script.Name)
+				finalPath := base + script.Path
+				if script.AbsPath {
+					finalPath = script.Path
+				}
+				program := NewProgram(script.Name, finalPath, script.Args, i)
+				program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
+				programs[script.Name] = program
+				time.Sleep(script.SleepAfter * time.Second)
+			}
+		}
 	}
 
 	var containErr bool
