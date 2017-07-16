@@ -18,6 +18,8 @@ import (
 	"syscall"
 )
 
+var pIndex = -1
+
 type Program struct {
 	name        string
 	command     *exec.Cmd
@@ -25,16 +27,21 @@ type Program struct {
 	ignoreError bool
 }
 
-func NewProgram(name string, path string, args []string, index int, ignoreError bool) Program {
-	if _, err := os.Stat(path); err != nil {
+func NewProgram(script Script) Program {
+	if !script.AbsPath {
+		base, _ := os.Getwd()
+		script.Path = base + script.Path
+	}
+	if _, err := os.Stat(script.Path); err != nil {
 		if os.IsNotExist(err) {
-			panic(fmt.Sprintf("File not exist:%s", path))
+			panic(fmt.Sprintf("File not exist:%s", script.Path))
 		}
 	}
 
-	command := exec.Command(path, args...)
+	command := exec.Command(script.Path, script.Args...)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	return Program{name, command, index, ignoreError}
+	pIndex++
+	return Program{script.Name, command, pIndex, script.IgnoreError}
 }
 
 func isUrlAlive(url string) bool {
@@ -146,8 +153,6 @@ type Script struct {
 func main() {
 	taskNames := os.Args
 
-	base, _ := os.Getwd()
-
 	var tasks []Task
 	input, err := ioutil.ReadFile("go-task-runner.json")
 	if err != nil {
@@ -156,25 +161,14 @@ func main() {
 	_ = json.Unmarshal(input, &tasks)
 
 	programs := make(map[string]Program)
-	forcedExit(&programs)
+	forceTaskOnInterrupt(tasks, &programs)
 
 	for _, taskName := range taskNames {
 		for _, task := range tasks {
 			gotenv.Load(task.EnvPath)
 			setEnvironment(task.Environments)
 			if taskName == task.Name {
-				for i, script := range task.Scripts {
-					fmt.Println("Running:", script.Name)
-					finalPath := base + script.Path
-					if script.AbsPath {
-						finalPath = script.Path
-					}
-					setEnvironment(script.Environments)
-					program := NewProgram(script.Name, finalPath, script.Args, i, script.IgnoreError)
-					program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
-					programs[script.Name] = program
-					time.Sleep(script.SleepAfter * time.Second)
-				}
+				programs = runTask(task)
 			}
 		}
 	}
@@ -182,8 +176,17 @@ func main() {
 	exitPrograms(programs)
 }
 
-func runTask() {
-
+func runTask(task Task) map[string]Program {
+	programs := make(map[string]Program)
+	for _, script := range task.Scripts {
+		fmt.Println("Running:", script.Name)
+		setEnvironment(script.Environments)
+		program := NewProgram(script)
+		program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
+		programs[script.Name] = program
+		time.Sleep(script.SleepAfter * time.Second)
+	}
+	return programs
 }
 
 func setEnvironment(envs []map[string]string) {
@@ -195,23 +198,23 @@ func setEnvironment(envs []map[string]string) {
 }
 
 func exitPrograms(programs map[string]Program) {
-	var containErr bool
 
+	var appErrs []string
 	for _, program := range programs {
 		if program.command.ProcessState != nil {
 			if !program.command.ProcessState.Success() && !program.ignoreError {
-				containErr = true
+				appErrs = append(appErrs, program.name)
 			}
 		}
 		program.kill()
 	}
 
-	if containErr {
-		log.Fatal("Error in application found!")
+	if len(appErrs) != 0 {
+		log.Fatal("Error in application found:", appErrs)
 	}
 }
 
-func forcedExit(programs *map[string]Program) {
+func forceTaskOnInterrupt(tasks []Task, programs *map[string]Program) {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan,
 		syscall.SIGINT,
@@ -222,7 +225,15 @@ func forcedExit(programs *map[string]Program) {
 		s := <-sigchan
 		// do anything you need to end program cleanly
 		log.Println("FORCE EXIT!", s)
-		exitPrograms(*programs)
+		for _, task := range tasks {
+			for _, taskName := range task.TaskIfInterrupt {
+				for _, taskToRun := range tasks {
+					if taskToRun.Name == taskName {
+						runTask(task)
+					}
+				}
+			}
+		}
 		os.Exit(0)
 	}()
 }
