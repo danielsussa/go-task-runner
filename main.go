@@ -25,8 +25,8 @@ var pIndex = -1
 type Program struct {
 	name        string
 	command     *exec.Cmd
-	index       int
 	ignoreError bool
+	Logs        bool
 }
 
 func NewProgram(script Script) Program {
@@ -43,7 +43,7 @@ func NewProgram(script Script) Program {
 	command := exec.Command(script.Path, script.Args...)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	pIndex++
-	return Program{script.Name, command, pIndex, script.IgnoreError}
+	return Program{script.Name, command, script.IgnoreError, script.Logs}
 }
 
 func isUrlAlive(url string) bool {
@@ -104,11 +104,11 @@ func readLog(logB *bytes.Buffer, name string, index int) {
 func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 	var out bytes.Buffer
 
+	p.command.Args = args
+
 	// set the output to our variable
 	p.command.Stdout = &out
 	p.command.Stderr = &out
-
-	p.command.Args = args
 
 	p.command.Start()
 
@@ -139,7 +139,13 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 		time.Sleep(1 * time.Second)
 		count++
 	}
-	go readLog(&out, p.name, p.index)
+
+	if p.Logs {
+
+		pIndex++
+		go readLog(&out, p.name, pIndex)
+	}
+
 	if !bgMode {
 		p.command.Wait()
 	}
@@ -166,6 +172,7 @@ type Script struct {
 	BgMode       bool
 	Timeout      int
 	IgnoreError  bool
+	Logs         bool
 	Environments []map[string]string
 	SleepAfter   time.Duration
 }
