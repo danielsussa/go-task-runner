@@ -87,11 +87,7 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 
 	p.command.Args = args
 
-	if bgMode {
-		go p.command.Run()
-	} else {
-		p.command.Run()
-	}
+	p.command.Start()
 
 	count := 0
 	for {
@@ -114,6 +110,9 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 		count++
 	}
 	go readLog(&out, p.name, p.index)
+	if !bgMode {
+		p.command.Wait()
+	}
 }
 
 func (p *Program) kill() {
