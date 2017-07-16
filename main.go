@@ -129,20 +129,16 @@ type Task struct {
 }
 
 type Script struct {
-	Name        string
-	Path        string
-	AbsPath     bool
-	HealthCheck string
-	Args        []string
-	BgMode      bool
-	Timeout     int
-	IgnoreError bool
-	SleepAfter  time.Duration
-}
-
-type Environments struct {
-	Key   string
-	Value string
+	Name         string
+	Path         string
+	AbsPath      bool
+	HealthCheck  string
+	Args         []string
+	BgMode       bool
+	Timeout      int
+	IgnoreError  bool
+	Environments []map[string]string
+	SleepAfter   time.Duration
 }
 
 func main() {
@@ -168,6 +164,7 @@ func main() {
 				if script.AbsPath {
 					finalPath = script.Path
 				}
+				setEnvironment(script.Environments)
 				program := NewProgram(script.Name, finalPath, script.Args, i, script.IgnoreError)
 				program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
 				programs[script.Name] = program
@@ -176,6 +173,14 @@ func main() {
 		}
 	}
 	exitPrograms(programs)
+}
+
+func setEnvironment(envs []map[string]string) {
+	for _, env := range envs {
+		for key, value := range env {
+			os.Setenv(key, value)
+		}
+	}
 }
 
 func exitPrograms(programs map[string]Program) {
