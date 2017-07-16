@@ -10,19 +10,24 @@ Requiered [Go](https://nodejs.org/) v1.8+ to run.
 ```json
 $ go get github.com/danielsussa/go-task-runner
 $ go-task-runner init
+$ go-task-runner task-hello
+
+Running: Say Hello
+"Say Hello": Hello from WORLD
 ```
 This will generate a new go-task-runner.json file:
 
 ```json
 [
 	{
-		"name":"Task Hello World",
+		"name":"task-hello",
 		"envPath":"",
 		"environments":[{"DOMAIN":"WORLD"}],
 		"scripts":[
 			{
 				"name":"Say Hello",
 				"path":"/bin/sh", 
+				"logs":true,
 				"absPath":true, 
 				"timeout":10,
 				"args":["","-c","echo Hello $DOMAIN"]
