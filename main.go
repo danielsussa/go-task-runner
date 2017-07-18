@@ -153,7 +153,10 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 }
 
 func (p *Program) kill() {
-	syscall.Kill(-p.command.Process.Pid, 15)
+	pgid, err := syscall.Getpgid(p.command.Process.Pid)
+	if err == nil {
+		syscall.Kill(-pgid, 15) // note the minus sign
+	}
 }
 
 type Task struct {
@@ -203,7 +206,7 @@ func main() {
 	programs := make(map[string]Program)
 
 	for _, taskName := range taskNames {
-		runTask(tasks[taskName])
+		programs = runTask(tasks[taskName])
 	}
 
 	exitPrograms(programs)
