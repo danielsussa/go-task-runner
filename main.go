@@ -12,12 +12,13 @@ import (
 
 	"github.com/go-resty/resty"
 
-	. "github.com/logrusorgru/aurora"
-	"github.com/subosito/gotenv"
 	"net"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	. "github.com/logrusorgru/aurora"
+	"github.com/subosito/gotenv"
 )
 
 var pIndex = -1
@@ -180,7 +181,7 @@ type Script struct {
 func generateJson() {
 	_, err := ioutil.ReadFile("go-task-runner.json")
 	if err != nil {
-		d1 := []byte("[\n\t{\n\t\t\"name\":\"task-hello\",\n\t\t\"envPath\":\"\",\n\t\t\"environments\":[{\"DOMAIN\":\"WORLD\"}],\n\t\t\"scripts\":[\n\t\t\t{\n\t\t\t\t\"name\":\"Say Hello\",\n\t\t\t\t\"logs\":true,\n\t\t\t\t\"path\":\"/bin/sh\",\n\t\t\t\t\"absPath\":true,\n\t\t\t\t\"timeout\":10,\n\t\t\t\t\"args\":[\"\",\"-c\",\"echo Hello from $DOMAIN\"] \r\n\t\t\t}\n\t\t]\n\t}\n]")
+		d1 := []byte("{\n\t\"task-hello\": {\n\t\t\"envPath\": \"\", \n\t\t\"environments\": [{\"DOMAIN\": \"WORLD\"}], \n\t\t\"scripts\": [\n\t\t\t{\n\t\t\t\t\"name\": \"Say Hello\",\n\t\t\t\t\"logs\": true,\n\t\t\t\t\"path\": \"/bin/sh\",\n\t\t\t\t\"absPath\": true,\n\t\t\t\t\"sleepAfter\": 1,\n\t\t\t\t\"timeout\": 10,\n\t\t\t\t\"args\": [\"\", \"-c\", \"echo Hello from $DOMAIN\"]\n\t\t\t}\n\t\t]\n\t}\n}")
 		_ = ioutil.WriteFile("go-task-runner.json", d1, 0777)
 	}
 }
@@ -192,7 +193,7 @@ func main() {
 		generateJson()
 	}
 
-	var tasks []Task
+	var tasks map[string]Task
 	input, err := ioutil.ReadFile("go-task-runner.json")
 	if err != nil {
 		log.Fatal(err)
@@ -200,22 +201,17 @@ func main() {
 	_ = json.Unmarshal(input, &tasks)
 
 	programs := make(map[string]Program)
-	forceTaskOnInterrupt(tasks, &programs)
 
 	for _, taskName := range taskNames {
-		for _, task := range tasks {
-			gotenv.Load(task.EnvPath)
-			setEnvironment(task.Environments)
-			if taskName == task.Name {
-				programs = runTask(task)
-			}
-		}
+		runTask(tasks[taskName])
 	}
 
 	exitPrograms(programs)
 }
 
 func runTask(task Task) map[string]Program {
+	gotenv.Load(task.EnvPath)
+	setEnvironment(task.Environments)
 	programs := make(map[string]Program)
 	for _, script := range task.Scripts {
 		fmt.Println("Running:", script.Name)

@@ -18,29 +18,28 @@ Running: Say Hello
 This will generate a new go-task-runner.json file:
 
 ```json
-[
-	{
-		"name":"task-hello",
-		"envPath":"",
-		"environments":[{"DOMAIN":"WORLD"}],
-		"scripts":[
+{
+	"task-hello": {
+		"envPath": "", 
+		"environments": [{"DOMAIN": "WORLD"}], 
+		"scripts": [
 			{
-				"name":"Say Hello",
-				"path":"/bin/sh", 
-				"logs":true,
-				"absPath":true, 
-				"timeout":10,
-				"args":["","-c","echo Hello $DOMAIN"]
+				"name": "Say Hello",
+				"logs": true,
+				"path": "/bin/sh",
+				"absPath": true,
+				"sleepAfter": 1,
+				"timeout": 10,
+				"args": ["", "-c", "echo Hello from $DOMAIN"]
 			}
 		]
 	}
-]
+}
 ```
 
 ### Properties
 
 - Tasks properties:
-	- name: task name
 	- envPath: You can use a env file containing:
 		-  export FOO=BAR
 		- FOO=BAR (*.env)
