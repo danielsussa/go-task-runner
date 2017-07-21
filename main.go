@@ -17,6 +17,8 @@ import (
 	"strings"
 	"syscall"
 
+	"sync"
+
 	. "github.com/logrusorgru/aurora"
 	"github.com/subosito/gotenv"
 )
@@ -146,10 +148,10 @@ func (p *Program) Run(bgMode bool, timeout int, args []string, health string) {
 		pIndex++
 		go readLog(&out, p.name, pIndex)
 	}
-
 	if !bgMode {
 		p.command.Wait()
 	}
+
 }
 
 func (p *Program) kill() {
@@ -162,6 +164,8 @@ func (p *Program) kill() {
 type Task struct {
 	Name            string
 	EnvPath         string
+	WaitFinish      bool
+	CmdAfterExit    string
 	TaskIfInterrupt []string
 	Environments    []map[string]string
 	Scripts         []Script
@@ -204,27 +208,40 @@ func main() {
 	_ = json.Unmarshal(input, &tasks)
 
 	programs := make(map[string]Program)
-
+	var qtdTasks int
 	for _, taskName := range taskNames {
-		programs = runTask(tasks[taskName])
+		task := tasks[taskName]
+		if task.CmdAfterExit != "" {
+			go forceKill(task.CmdAfterExit)
+		}
+		var wg sync.WaitGroup
+		programs, qtdTasks = runTask(task)
+		wg.Add(qtdTasks)
+		if task.WaitFinish {
+			wg.Wait()
+		}
 	}
-
 	exitPrograms(programs)
 }
 
-func runTask(task Task) map[string]Program {
+func runTask(task Task) (map[string]Program, int) {
+	var qtdTasks int
 	gotenv.Load(task.EnvPath)
 	setEnvironment(task.Environments)
 	programs := make(map[string]Program)
+
 	for _, script := range task.Scripts {
 		fmt.Println("Running:", script.Name)
 		setEnvironment(script.Environments)
 		program := NewProgram(script)
+		if script.BgMode {
+			qtdTasks++
+		}
 		program.Run(script.BgMode, script.Timeout, script.Args, script.HealthCheck)
 		programs[script.Name] = program
 		time.Sleep(script.SleepAfter * time.Second)
 	}
-	return programs
+	return programs, qtdTasks
 }
 
 func setEnvironment(envs []map[string]string) {
@@ -252,7 +269,7 @@ func exitPrograms(programs map[string]Program) {
 	}
 }
 
-func forceTaskOnInterrupt(tasks []Task, programs *map[string]Program) {
+func forceKill(cmd string) {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan,
 		syscall.SIGINT,
@@ -260,18 +277,11 @@ func forceTaskOnInterrupt(tasks []Task, programs *map[string]Program) {
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 	go func() {
-		s := <-sigchan
+		sig := <-sigchan
 		// do anything you need to end program cleanly
-		log.Println("FORCE EXIT!", s)
-		for _, task := range tasks {
-			for _, taskName := range task.TaskIfInterrupt {
-				for _, taskToRun := range tasks {
-					if taskToRun.Name == taskName {
-						runTask(task)
-					}
-				}
-			}
-		}
+		fmt.Println("Exited:", sig)
+		command := exec.Command("/bin/sh", "-c", cmd)
+		command.Run()
 		os.Exit(0)
 	}()
 }

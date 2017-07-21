@@ -43,6 +43,8 @@ This will generate a new go-task-runner.json file:
 	- envPath: You can use a env file containing:
 		-  export FOO=BAR
 		- FOO=BAR (*.env)
+	- waitFinish: if true the task will wait for all process finish before end or start another task
+	- cmdAfterExit: Run a shell command after exit
 	- environments: List of key value environment variable
 	- script: List of scripts...
 - Scripts
